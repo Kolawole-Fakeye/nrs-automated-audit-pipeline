@@ -22,34 +22,38 @@ with col_header:
     st.caption("Strategic Data Analysis Unit | Abuja HQ")
 
 # 2. Dynamic Environment & Secure Data Ingestion
-# Reads your production Render/Railway URL if available; defaults to local machine for testing
-PRODUCTION_API_URL = os.getenv("NRS_BACKEND_URL", "https://nrs-backend-api.onrender.com/data")
+# Synchronized with main.py endpoint path
+PRODUCTION_API_URL = os.getenv("NRS_BACKEND_URL", "https://nrs-backend-api.onrender.com/api/v1/audit-data")
 LOCAL_FALLBACK_FILE = "nrs_audited_results.csv"
 
-@st.cache_data(ttl=300)  # Caches data for 5 minutes to prevent hammering your API
+@st.cache_data(ttl=300)  # Caches data for 5 minutes
 def fetch_audit_data(url: str, fallback_path: str):
     """
     Robust Data Ingestion Engine. 
-    Attempts live backend synchronization, falling back gracefully to a localized
-    cached data state if the production server environment is spinning down.
+    Synchronizes with FastAPI's wrapped dictionary response and handles cold-starts.
     """
     try:
-        response = requests.get(url, timeout=4)
+        response = requests.get(url, timeout=60)
         if response.status_code == 200:
-            return pd.DataFrame(response.json()), "Live API Synchronization"
+            json_response = response.json()
+            # Extract the actual data records list from the backend's wrapper
+            if isinstance(json_response, dict) and "data" in json_response:
+                return pd.DataFrame(json_response["data"]), "Live API Synchronization"
+            else:
+                return pd.DataFrame(json_response), "Live API Synchronization"
     except Exception:
         pass # Gracefully pivot to local architecture check
         
     if os.path.exists(fallback_path):
         return pd.read_csv(fallback_path), "Local Storage Fallback (Offline Mode)"
     else:
-        raise FileNotFoundError("Critical System Error: No operational data layer detected.")
+        raise FileNotFoundError("Critical System Error: No operational data layer detected on Render or Local Storage.")
 
 # Execute Data Load
 try:
     df, data_source_mode = fetch_audit_data(PRODUCTION_API_URL, LOCAL_FALLBACK_FILE)
 
-    # Display Architecture Pipeline Status to Recruiters
+    # Display Architecture Pipeline Status
     if "Fallback" in data_source_mode:
         st.sidebar.warning(f"🔌 System Status: {data_source_mode}")
     else:
@@ -58,10 +62,10 @@ try:
     # --- Column Normalization Engine ---
     cols = {c.lower().replace(' ', '_').replace('.', '_'): c for c in df.columns}
     
-    t_col = cols.get('tax_paid', df.columns[2] if len(df.columns) > 2 else df.columns[0])
-    a_col = cols.get('is_anomaly', cols.get('anomaly'))
-    s_col = cols.get('sector', df.columns[1] if len(df.columns) > 1 else df.columns[0])
-    r_col = cols.get('region', df.columns[3] if len(df.columns) > 3 else df.columns[0])
+    t_col = cols.get('tax_paid', cols.get('reported_revenue', df.columns[2] if len(df.columns) > 2 else df.columns[0]))
+    a_col = cols.get('is_anomaly', cols.get('anomaly', cols.get('audit_status')))
+    s_col = cols.get('sector', cols.get('taxpayer_name', df.columns[1] if len(df.columns) > 1 else df.columns[0]))
+    r_col = cols.get('region', cols.get('taxpayer_id', df.columns[3] if len(df.columns) > 3 else df.columns[0]))
 
     # --- EXECUTIVE METRICS ---
     st.write("### 🔑 Key Performance Indicators")
@@ -71,18 +75,24 @@ try:
         st.metric("Total Revenue Audited", f"₦{df[t_col].sum():,.0f}")
     
     with m2:
-        if a_col:
-            risk_total = len(df[df[a_col].astype(str).str.upper().str.contains('YES|TRUE|1', na=False)])
-            st.metric("High-Risk Files", risk_total, delta="Review Required", delta_color="inverse")
-        else:
-            st.metric("High-Risk Files", "0", delta="No Column Match")
+        # Check if anomaly logic or 'Under Review' status exists
+        risk_condition = df[a_col].astype(str).str.upper().str.contains('YES|TRUE|1|UNDER REVIEW', na=False)
+        risk_total = len(df[risk_condition])
+        st.metric("High-Risk Files", risk_total, delta="Review Required", delta_color="inverse")
     
     with m3:
-        st.metric("Active Tax Jurisdictions", df[r_col].nunique())
+        st.metric("Total Tracked Entities", df[r_col].nunique())
         
     with m4:
-        top_contributor = df.groupby(s_col)[t_col].sum().idxmax()
-        st.metric("Top Contributing Sector", top_contributor)
+        # Handle fallback calculations if columns vary
+        try:
+            top_contributor = df.groupby(s_col)[t_col].sum().idxmax()
+            # Trim long names for display layout aesthetics
+            if len(str(top_contributor)) > 20:
+                top_contributor = str(top_contributor)[:17] + "..."
+        except:
+            top_contributor = "N/A"
+        st.metric("Top Contributing Entity/Sector", top_contributor)
 
     st.divider()
 
@@ -90,22 +100,20 @@ try:
     c1, c2 = st.columns([2, 1])
 
     with c1:
-        st.write("#### 📊 Revenue Density (Region & Sector)")
-        fig = px.treemap(df, path=[r_col, s_col], values=t_col,
+        st.write("#### 📊 Revenue Distribution Map")
+        fig = px.treemap(df, path=[s_col], values=t_col,
                          color=t_col, color_continuous_scale='Greens')
         st.plotly_chart(fig, use_container_width=True)
 
     with c2:
         st.write("#### 💡 Executive Summary")
-        top_reg = df.groupby(r_col)[t_col].sum().idxmax()
-        st.info(f"**{top_reg}** is the primary revenue driver in this batch.")
-        if a_col:
-            st.warning(f"Found **{risk_total} anomalies** requiring secondary verification.")
-        st.success("Internal Systems: Synchronized")
+        st.info("System operational data connection established cleanly.")
+        st.warning(f"Found **{risk_total} files** requiring secondary verification workflow rules.")
+        st.success("Internal Data Pipelines: Fully Synchronized")
 
     # --- AUDIT TABLE ---
     st.write("#### 🔍 Master Audit Investigation List")
-    search = st.text_input("Quick Search (Enter Sector, Region, or ID):")
+    search = st.text_input("Quick Search (Enter Sector, Name, or ID):")
     if search:
         df = df[df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)]
     
