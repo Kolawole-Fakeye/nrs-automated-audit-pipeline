@@ -23,7 +23,7 @@ with col_header:
 
 # 2. Dynamic Environment & Secure Data Ingestion
 # Synchronized with main.py endpoint path
-PRODUCTION_API_URL = os.getenv("NRS_BACKEND_URL", "https://nrs-backend-api.onrender.com/api/v1/audit-data")
+PRODUCTION_API_URL = "http://offline-testing"
 LOCAL_FALLBACK_FILE = "nrs_audited_results.csv"
 
 @st.cache_data(ttl=300)  # Caches data for 5 minutes
