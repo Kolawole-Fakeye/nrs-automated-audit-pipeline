@@ -23,7 +23,7 @@ with col_header:
 
 # 2. Dynamic Environment & Secure Data Ingestion
 # Reads your production Render/Railway URL if available; defaults to local machine for testing
-PRODUCTION_API_URL = os.getenv("NRS_BACKEND_URL", "http://127.0.0.1:8000/data")
+PRODUCTION_API_URL = os.getenv("NRS_BACKEND_URL", "https://nrs-backend-api.onrender.com/")
 LOCAL_FALLBACK_FILE = "nrs_audited_results.csv"
 
 @st.cache_data(ttl=300)  # Caches data for 5 minutes to prevent hammering your API
