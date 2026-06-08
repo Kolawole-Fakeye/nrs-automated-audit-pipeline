@@ -8,54 +8,62 @@ st.title("🦅 Nigeria Revenue Service (NRS)")
 st.subheader("Tax Integrity & Audit Intelligence System")
 st.markdown("---")
 
-# Point back to the exact same production CSV metrics file your backend uses
-DATA_PATH = "data/production_efficiency_metrics.csv"
+# The dedicated tax data file pathway
+DATA_PATH = "data/tax_compliance_telemetry.csv"
 
-# --- INTERNAL SELF-SEEDING COMPLIANCE DATA LAYER ---
+# --- INTERNAL SELF-SEEDING TAX AUDIT DATA LAYER ---
 @st.cache_data
-def seed_production_data():
-    """Generates the unified operational metrics dataset locally inside the cloud container"""
+def seed_tax_data():
+    """Generates corporate tax compliance telemetry locally inside the cloud container"""
     if not os.path.exists(DATA_PATH):
-        np.random.seed(42)
-        voyages = 150
-        ports = ['Apapa', 'Tin Can Island', 'Tema', 'Luanda']
-        vessels = ['Maersk Mc-Kinney Moller', 'Maersk Mc-Kinney', 'Maersk Hangzhou', 'Maersk Camacari', 'Maersk Herrera']
+        np.random.seed(101)
+        records = 200
+        sectors = ['Manufacturing', 'Oil & Gas', 'Telecommunications', 'Financial Services', 'Maritime & Logistics']
+        states = ['Lagos', 'Rivers', 'FCT Abuja', 'Kano', 'Delta']
         
         df = pd.DataFrame({
-            'voyage_id': [f"V-2026-{i:03d}" for i in range(1, voyages + 1)],
-            'vessel_name': np.random.choice(vessels, voyages),
-            'arrival_port': np.random.choice(ports, voyages, p=[0.4, 0.3, 0.15, 0.15]),
-            'cargo_volume_teu': np.random.randint(2500, 8500, voyages)
+            'taxpayer_id': [f"RC-{np.random.randint(100000, 999999)}" for _ in range(records)],
+            'company_name': [f"Corporate_Asset_{i:03d} Ltd" for i in range(1, records + 1)],
+            'sector': np.random.choice(sectors, records),
+            'registered_state': np.random.choice(states, records, p=[0.4, 0.2, 0.2, 0.1, 0.1]),
+            'reported_revenue_ngn': np.random.uniform(50_000_000, 2_500_000_000, records).round(2)
         })
         
-        df['days_in_port'] = df['arrival_port'].apply(lambda p: np.random.randint(5, 18) if p in ['Apapa', 'Tin Can Island'] else np.random.randint(2, 6))
-        df['demurrage_costs_usd'] = df['days_in_port'].apply(lambda x: max(0, (x - 5) * 3500))
-        df['fuel_consumed_mt'] = df['days_in_port'] * np.random.uniform(35.0, 45.0, voyages)
-        df['co2_emissions_mt'] = df['fuel_consumed_mt'] * 3.114
-        df['cii_rating'] = df['days_in_port'].apply(lambda d: 'A' if d<=4 else 'B' if d<=6 else 'C' if d<=9 else 'D' if d<=13 else 'E')
+        # Algorithmic Audit Indicators
+        df['effective_tax_rate'] = df['sector'].apply(
+            lambda s: np.random.uniform(0.05, 0.15) if s in ['Oil & Gas', 'Financial Services'] else np.random.uniform(0.18, 0.32)
+        )
+        df['tax_paid_ngn'] = (df['reported_revenue_ngn'] * df['effective_tax_rate']).round(2)
+        
+        # Fraud/Risk Flagging Heuristics
+        df['variance_score'] = np.random.uniform(0.0, 1.0, records)
+        df['audit_risk_status'] = df.apply(
+            lambda row: 'CRITICAL (High Risk)' if row['effective_tax_rate'] < 0.12 and row['variance_score'] > 0.7 
+            else 'REVIEW REQUIRED' if row['effective_tax_rate'] < 0.18 or row['variance_score'] > 0.5 
+            else 'COMPLIANT', axis=1
+        )
         
         os.makedirs('data', exist_ok=True)
         df.to_csv(DATA_PATH, index=False)
 
-# Seed data silently behind the scenes
-seed_production_data()
+# Seed the tax data file silently behind the scenes
+seed_tax_data()
 
-# --- SYSTEM AUDIT VISUALIZATION LAYER ---
+# --- TAX SYSTEM VISUALIZATION LAYER ---
 if os.path.exists(DATA_PATH):
     df = pd.read_csv(DATA_PATH)
     
-    # Calculate operational metrics safely using your exact backend columns
-    total_voyages = len(df)
-    avg_turnaround = float(df['days_in_port'].mean()) if 'days_in_port' in df.columns else 0.0
-    total_demurrage = float(df['demurrage_costs_usd'].sum()) if 'demurrage_costs_usd' in df.columns else 0.0
-    total_carbon = float(df['co2_emissions_mt'].sum()) if 'co2_emissions_mt' in df.columns else 0.0
+    # Core Fiscal KPIs
+    total_taxpayers = len(df)
+    total_revenue = df['reported_revenue_ngn'].sum()
+    total_tax_collected = df['tax_paid_ngn'].sum()
+    flagged_cases = len(df[df['audit_risk_status'] == 'CRITICAL (High Risk)'])
     
-    # Core Audit KPIs
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Voyages Audited", f"{total_voyages}")
-    col2.metric("Avg Turnaround Time", f"{avg_turnaround:.1f} Days")
-    col3.metric("Total Demurrage Monitored", f"${total_demurrage:,.2f}")
-    col4.metric("Carbon Emissions Mass", f"{total_carbon:,.1f} MT CO2")
+    col1.metric("Taxpayers Audited", f"{total_taxpayers}")
+    col2.metric("Total Reported Revenue", f"₦{total_revenue:,.2f}")
+    col3.metric("Total Tax Recovered", f"₦{total_tax_collected:,.2f}")
+    col4.metric("Critical Risk Flags", f"⚠️ {flagged_cases} Cases")
     
     st.markdown("---")
     
@@ -63,24 +71,24 @@ if os.path.exists(DATA_PATH):
     left, right = st.columns(2)
     
     with left:
-        st.subheader("📊 Port Bottlenecks (Avg Days in Port)")
-        port_analysis = df.groupby("arrival_port")["days_in_port"].mean()
-        st.bar_chart(port_analysis)
+        st.subheader("📊 Sector Risk Exposure (Avg Risk Variance)")
+        sector_analysis = df.groupby("sector")["variance_score"].mean()
+        st.bar_chart(sector_analysis)
         
     with right:
-        st.subheader("💰 Financial Leakage by Vessel Profile")
-        vessel_analysis = df.groupby("vessel_name")["demurrage_costs_usd"].sum()
-        st.bar_chart(vessel_analysis)
+        st.subheader("📍 Compliance Tax Density by Region")
+        state_risk = df.groupby("registered_state")["tax_paid_ngn"].sum()
+        st.bar_chart(state_risk)
         
     st.markdown("---")
     
-    # Raw System Audit Ledger Stream
-    st.subheader("📋 System Audit Log & Integrity Data Matrix")
+    # Raw Audit Ledger Stream
+    st.subheader("📋 System Audit Log & Fraud Risk Matrix")
     
-    # Dropdown interactive filtering built natively from your data structure
-    rating_filter = st.selectbox("Filter Ledger by Carbon Intensity Rating (CII):", ['ALL'] + sorted(list(df['cii_rating'].unique())))
-    if rating_filter != 'ALL':
-        filtered_df = df[df['cii_rating'] == rating_filter]
+    # Dropdown interactive filtering built natively
+    status_filter = st.selectbox("Filter Ledger by Risk Profile:", ['ALL'] + list(df['audit_risk_status'].unique()))
+    if status_filter != 'ALL':
+        filtered_df = df[df['audit_risk_status'] == status_filter]
     else:
         filtered_df = df
         
