@@ -8,91 +8,95 @@ st.title("🦅 Nigeria Revenue Service (NRS)")
 st.subheader("Tax Integrity & Audit Intelligence System")
 st.markdown("---")
 
-# The dedicated tax data file pathway
-DATA_PATH = "data/tax_compliance_telemetry.csv"
+# Sync with your exact backend data path
+PARQUET_FILE_PATH = "nrs_audited_results.parquet"
 
-# --- INTERNAL SELF-SEEDING TAX AUDIT DATA LAYER ---
+# --- INTERNAL STATIC DATA LAYER (Bypasses network downtime) ---
 @st.cache_data
-def seed_tax_data():
-    """Generates corporate tax compliance telemetry locally inside the cloud container"""
-    if not os.path.exists(DATA_PATH):
+def ensure_local_parquet_cache():
+    """
+    Ensures the high-performance columnar data layer exists in the container
+    matching your backend structure exactly.
+    """
+    if not os.path.exists(PARQUET_FILE_PATH):
+        # Generate robust mock data matching your exact schema and baseline companies
         np.random.seed(101)
-        records = 200
-        sectors = ['Manufacturing', 'Oil & Gas', 'Telecommunications', 'Financial Services', 'Maritime & Logistics']
-        states = ['Lagos', 'Rivers', 'FCT Abuja', 'Kano', 'Delta']
+        records = 150
+        
+        # Build out a wider version of your exact baseline dictionary
+        baseline_companies = ["Aliko Dangote Industries", "Tony Elumelu Holdings", "Afolabi Systems Ltd"]
+        additional_companies = [f"Corporate_Taxpayer_{i:03d} Ltd" for i in range(4, records + 1)]
+        all_companies = baseline_companies + additional_companies
         
         df = pd.DataFrame({
-            'taxpayer_id': [f"RC-{np.random.randint(100000, 999999)}" for _ in range(records)],
-            'company_name': [f"Corporate_Asset_{i:03d} Ltd" for i in range(1, records + 1)],
-            'sector': np.random.choice(sectors, records),
-            'registered_state': np.random.choice(states, records, p=[0.4, 0.2, 0.2, 0.1, 0.1]),
-            'reported_revenue_ngn': np.random.uniform(50_000_000, 2_500_000_000, records).round(2)
+            'taxpayer_id': [f"NRS-2026-{i:03d}" for i in range(1, records + 1)],
+            'taxpayer_name': all_companies,
+            'reported_revenue': np.random.uniform(5_000_000, 150_000_000, records).round(2),
+            'risk_score': np.random.uniform(0.01, 0.95, records).round(2)
         })
         
-        # Algorithmic Audit Indicators
-        df['effective_tax_rate'] = df['sector'].apply(
-            lambda s: np.random.uniform(0.05, 0.15) if s in ['Oil & Gas', 'Financial Services'] else np.random.uniform(0.18, 0.32)
-        )
-        df['tax_paid_ngn'] = (df['reported_revenue_ngn'] * df['effective_tax_rate']).round(2)
+        # Calculate matching fiscal logic natively
+        df['tax_paid'] = (df['reported_revenue'] * np.random.uniform(0.10, 0.30, records)).round(2)
         
-        # Fraud/Risk Flagging Heuristics
-        df['variance_score'] = np.random.uniform(0.0, 1.0, records)
-        df['audit_risk_status'] = df.apply(
-            lambda row: 'CRITICAL (High Risk)' if row['effective_tax_rate'] < 0.12 and row['variance_score'] > 0.7 
-            else 'REVIEW REQUIRED' if row['effective_tax_rate'] < 0.18 or row['variance_score'] > 0.5 
-            else 'COMPLIANT', axis=1
+        # Determine audit status using your exact backend strings
+        df['audit_status'] = df['risk_score'].apply(
+            lambda r: 'Under Review' if r > 0.65 else 'Auditing' if r > 0.40 else 'Compliant'
         )
         
-        os.makedirs('data', exist_ok=True)
-        df.to_csv(DATA_PATH, index=False)
+        # Save explicitly as Apache Parquet just like the backend
+        df.to_parquet(PARQUET_FILE_PATH, index=False)
 
-# Seed the tax data file silently behind the scenes
-seed_tax_data()
+# Silently prepare the data layer inside the Streamlit instance
+ensure_local_parquet_cache()
 
-# --- TAX SYSTEM VISUALIZATION LAYER ---
-if os.path.exists(DATA_PATH):
-    df = pd.read_csv(DATA_PATH)
+# --- SYSTEM INTEGRITY VISUALIZATION LAYER ---
+if os.path.exists(PARQUET_FILE_PATH):
+    # Native binary columnar read
+    df = pd.read_parquet(PARQUET_FILE_PATH)
     
-    # Core Fiscal KPIs
-    total_taxpayers = len(df)
-    total_revenue = df['reported_revenue_ngn'].sum()
-    total_tax_collected = df['tax_paid_ngn'].sum()
-    flagged_cases = len(df[df['audit_risk_status'] == 'CRITICAL (High Risk)'])
+    # Process Metrics Safely matching your variables
+    total_audited = len(df)
+    total_reported_rev = df['reported_revenue'].sum()
+    total_tax_recovered = df['tax_paid'].sum()
+    high_risk_cases = len(df[df['audit_status'] == 'Under Review'])
     
+    # Row 1: KPI Scorecards
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Taxpayers Audited", f"{total_taxpayers}")
-    col2.metric("Total Reported Revenue", f"₦{total_revenue:,.2f}")
-    col3.metric("Total Tax Recovered", f"₦{total_tax_collected:,.2f}")
-    col4.metric("Critical Risk Flags", f"⚠️ {flagged_cases} Cases")
+    col1.metric("Taxpayers Tracked", f"{total_audited}")
+    col2.metric("Total Reported Revenue", f"₦{total_reported_rev:,.2f}")
+    col3.metric("Total Tax Audited", f"₦{total_tax_recovered:,.2f}")
+    col4.metric("Cases Under Review", f"⚠️ {high_risk_cases}")
     
     st.markdown("---")
     
-    # Analytics Row (Using Native, Bulletproof Streamlit Charts)
+    # Row 2: Native Analytics Engine
     left, right = st.columns(2)
     
     with left:
-        st.subheader("📊 Sector Risk Exposure (Avg Risk Variance)")
-        sector_analysis = df.groupby("sector")["variance_score"].mean()
-        st.bar_chart(sector_analysis)
+        st.subheader("📊 Revenue vs Tax Paid Distribution")
+        # Build simple aggregated dataframe for visual comparison
+        chart_data = df.groupby("audit_status")[["reported_revenue", "tax_paid"]].sum()
+        st.bar_chart(chart_data)
         
     with right:
-        st.subheader("📍 Compliance Tax Density by Region")
-        state_risk = df.groupby("registered_state")["tax_paid_ngn"].sum()
-        st.bar_chart(state_risk)
+        st.subheader("📈 Systemic Risk Profile Curve")
+        # Grouping by status to show averages of risk scores
+        risk_analysis = df.groupby("audit_status")["risk_score"].mean()
+        st.bar_chart(risk_analysis)
         
     st.markdown("---")
     
-    # Raw Audit Ledger Stream
-    st.subheader("📋 System Audit Log & Fraud Risk Matrix")
+    # Row 3: Data Integrity Ledger Stream
+    st.subheader("📋 Core Audit Intelligence Ledger")
     
-    # Dropdown interactive filtering built natively
-    status_filter = st.selectbox("Filter Ledger by Risk Profile:", ['ALL'] + list(df['audit_risk_status'].unique()))
-    if status_filter != 'ALL':
-        filtered_df = df[df['audit_risk_status'] == status_filter]
+    # Filter dropdown based on your actual statuses
+    status_filter = st.selectbox("Filter Ledger by Audit Status:", ["All Records", "Compliant", "Under Review"])
+    if status_filter != "All Records":
+        display_df = df[df['audit_status'] == status_filter]
     else:
-        filtered_df = df
+        display_df = df
         
-    st.dataframe(filtered_df, use_container_width=True)
+    st.dataframe(display_df, use_container_width=True)
 
 else:
-    st.error("NRS Tax System Audit Core Initialization Failed.")
+    st.error("Critical System Error: No operational data layer detected on the UI instance.")
