@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import requests
+import plotly.express as px
 import os
 
 st.set_page_config(page_title="NRS Tax Integrity & Audit Intelligence", layout="wide")
@@ -8,93 +9,107 @@ st.title("🦅 Nigeria Revenue Service (NRS)")
 st.subheader("Tax Integrity & Audit Intelligence System")
 st.markdown("---")
 
-# Use a native, plain-text CSV format that requires ZERO external installation dependencies
-CSV_FILE_PATH = "data/nrs_audited_results_ui.csv"
+# Backend API Endpoint Configuration
+BACKEND_API_URL = "http://localhost:8000/api/v1/audit-data"
+PARQUET_FILE_PATH = "nrs_audited_results.parquet"
 
-# --- INTERNAL ZERO-DEPENDENCY DATA LAYER ---
+# --- CORE DATA INGESTION OR CHECKSUM FALLBACK ---
 @st.cache_data
-def ensure_local_csv_cache():
+def load_audit_pipeline_data():
     """
-    Creates a clean, plain-text CSV data layer inside the cloud container.
-    Matches your exact backend schema columns: taxpayer_id, taxpayer_name, 
-    reported_revenue, tax_paid, audit_status, and risk_score.
+    Attempts to pull data dynamically from your FastAPI backend endpoint.
+    Falls back to the local Apache Parquet binary file if the service is offline.
     """
-    if not os.path.exists(CSV_FILE_PATH):
-        np.random.seed(101)
-        records = 150
+    try:
+        # Attempt to stream payload via FastAPI backend REST route
+        response = requests.get(BACKEND_API_URL, timeout=3)
+        if response.status_code == 200:
+            payload = response.json()
+            return pd.DataFrame(payload["data"])
+    except Exception:
+        # Silent failover to reading the high-performance local Parquet cache
+        pass
         
-        # Mirroring your core corporate entities from the main backend fallback layer
-        baseline_companies = ["Aliko Dangote Industries", "Tony Elumelu Holdings", "Afolabi Systems Ltd"]
-        additional_companies = [f"Corporate_Taxpayer_{i:03d} Ltd" for i in range(4, records + 1)]
-        all_companies = baseline_companies + additional_companies
-        
-        df = pd.DataFrame({
-            'taxpayer_id': [f"NRS-2026-{i:03d}" for i in range(1, records + 1)],
-            'taxpayer_name': all_companies,
-            'reported_revenue': np.random.uniform(5_000_000, 150_000_000, records).round(2),
-            'risk_score': np.random.uniform(0.01, 0.95, records).round(2)
-        })
-        
-        # Calculate matching fiscal logic natively
-        df['tax_paid'] = (df['reported_revenue'] * np.random.uniform(0.10, 0.30, records)).round(2)
-        
-        # Use your exact backend string values for status filtering
-        df['audit_status'] = df['risk_score'].apply(
-            lambda r: 'Under Review' if r > 0.65 else 'Compliant'
-        )
-        
-        os.makedirs('data', exist_ok=True)
-        df.to_csv(CSV_FILE_PATH, index=False)
-
-# Silently seed the native data file inside the Streamlit instance
-ensure_local_csv_cache()
-
-# --- SYSTEM INTEGRITY VISUALIZATION LAYER ---
-if os.path.exists(CSV_FILE_PATH):
-    # Read the text file natively (Pandas handles CSV with zero extra packages)
-    df = pd.read_csv(CSV_FILE_PATH)
+    if os.path.exists(PARQUET_FILE_PATH):
+        return pd.read_parquet(PARQUET_FILE_PATH)
     
-    # Process Metrics Safely matching your exact variables
-    total_audited = len(df)
-    total_reported_rev = df['reported_revenue'].sum()
-    total_tax_recovered = df['tax_paid'].sum()
-    high_risk_cases = len(df[df['audit_status'] == 'Under Review'])
+    # Ultimate fail-safe data array if container boots cold with no prior state
+    fallback_data = {
+        "taxpayer_id": ["NRS-2026-001", "NRS-2026-002", "NRS-2026-003"],
+        "taxpayer_name": ["Aliko Dangote Industries", "Tony Elumelu Holdings", "Afolabi Systems Ltd"],
+        "reported_revenue": [50000000.0, 35000000.0, 12000000.0],
+        "tax_paid": [5000000.0, 3500000.0, 1200000.0],
+        "audit_status": ["Compliant", "Under Review", "Compliant"],
+        "risk_score": [0.12, 0.45, 0.05]
+    }
+    return pd.DataFrame(fallback_data)
+
+# Ingest and map core records dataframe
+df = load_audit_pipeline_data()
+
+# Ensure case-insensitivity alignment with your main.py standardized columns
+df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+
+if not df.empty:
+    # Process core analytics variables 
+    total_taxpayers = len(df)
+    total_revenue = df['reported_revenue'].sum()
+    total_tax_paid = df['tax_paid'].sum()
+    flagged_cases = len(df[df['audit_status'].str.lower() == 'under review'])
     
-    # Row 1: KPI Scorecards
+    # Row 1: KPI Summary Scorecards
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Taxpayers Tracked", f"{total_audited}")
-    col2.metric("Total Reported Revenue", f"₦{total_reported_rev:,.2f}")
-    col3.metric("Total Tax Audited", f"₦{total_tax_recovered:,.2f}")
-    col4.metric("Cases Under Review", f"⚠️ {high_risk_cases}")
+    col1.metric("Audited Taxpayers", f"{total_taxpayers}")
+    col2.metric("Reported Gross Revenue", f"₦{total_revenue:,.2f}")
+    col3.metric("Aggregated Tax Recovered", f"₦{total_tax_paid:,.2f}")
+    col4.metric("Risk Audits Flagged", f"⚠️ {flagged_cases}")
     
     st.markdown("---")
     
-    # Row 2: Native, Dependency-Free Analytics Engine
+    # Row 2: Advanced Interactive Plotly Visualizations
     left, right = st.columns(2)
     
     with left:
-        st.subheader("📊 Revenue vs Tax Paid Distribution")
-        chart_data = df.groupby("audit_status")[["reported_revenue", "tax_paid"]].sum()
-        st.bar_chart(chart_data)
+        st.subheader("📊 Tax Contributions vs Gross Revenue")
+        # Creating an interactive grouped bar chart using your Plotly dependency
+        fig_bar = px.bar(
+            df, 
+            x="audit_status", 
+            y=["reported_revenue", "tax_paid"],
+            barmode="group",
+            labels={"value": "Amount (₦)", "audit_status": "Compliance Classification"},
+            color_discrete_sequence=["#1f77b4", "#ff7f0e"]
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
         
     with right:
-        st.subheader("📈 Systemic Risk Profile Curve")
-        risk_analysis = df.groupby("audit_status")["risk_score"].mean()
-        st.bar_chart(risk_analysis)
+        st.subheader("📈 Institutional Risk Profile Breakdown")
+        # Creating an interactive scatter profile mapping revenue sizes against calculated risk scores
+        fig_scatter = px.scatter(
+            df,
+            x="reported_revenue",
+            y="risk_score",
+            color="audit_status",
+            hover_name="taxpayer_name",
+            labels={"reported_revenue": "Reported Revenue (₦)", "risk_score": "Audit Risk Score Index"},
+            color_discrete_map={"Compliant": "green", "Under Review": "red"}
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
         
     st.markdown("---")
     
-    # Row 3: Data Integrity Ledger Stream
-    st.subheader("📋 Core Audit Intelligence Ledger")
+    # Row 3: Transaction Records Filter Interface
+    st.subheader("📋 Systemic Compliance Ledger Stream")
     
-    # Filter dropdown based on your actual statuses
-    status_filter = st.selectbox("Filter Ledger by Audit Status:", ["All Records", "Compliant", "Under Review"])
+    status_options = ["All Records"] + [status.title() for status in df['audit_status'].unique()]
+    status_filter = st.selectbox("Filter Audit Stream by Status:", status_options)
+    
     if status_filter != "All Records":
-        display_df = df[df['audit_status'] == status_filter]
+        display_df = df[df['audit_status'].str.lower() == status_filter.lower()]
     else:
         display_df = df
         
     st.dataframe(display_df, use_container_width=True)
 
 else:
-    st.error("Critical System Error: No operational data layer detected on the UI instance.")
+    st.error("Critical System Error: Operational data layer parsing failed.")
