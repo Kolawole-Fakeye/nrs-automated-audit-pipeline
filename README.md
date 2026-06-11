@@ -6,7 +6,7 @@ An automated, data-driven compliance and risk-scoring platform engineered to ing
 ---
 
 ## 🚀 Live Production System
-* **Interactive UI Dashboard:** [Insert Your Live Streamlit Link Here]
+* **Interactive UI Dashboard:** [https://nrs-automated-audit-pipeline-c7xrbfwfk4agwin8h54dv5.streamlit.app/]
 * **API Documentation Gateway:** `http://localhost:8000/docs` (Local Development)
 
 ---
@@ -30,11 +30,3 @@ An automated, data-driven compliance and risk-scoring platform engineered to ing
 
 ---
 
-## 🖥️ Local Installation & Deployment Guide
-
-Follow these steps to run the decoupled full-stack architecture inside your local workspace environment:
-
-### 1. Environment Setup & Dependency Installation
-Clone this repository to your machine, open your terminal workspace, and install the compiled requirements file:
-```bash
-pip install -r requirements.txt
