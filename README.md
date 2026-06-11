@@ -30,3 +30,35 @@ An automated, data-driven compliance and risk-scoring platform engineered to ing
 
 ---
 
+---
+
+## 🖥️ Local Installation & Deployment Guide
+
+Follow these steps to run the decoupled full-stack architecture inside your local workspace environment:
+
+### 1. Environment Setup & Dependency Installation
+Clone this repository to your machine, open your terminal workspace, and install the compiled requirements file:
+pip install -r requirements.txt
+
+### 2. Launch the FastAPI Backend Service
+Boot up the high-speed data stream API layer using the Uvicorn ASGI server interface:
+uvicorn main:app --reload --port 8000
+
+*The backend will automatically check, clean, and initialize the Apache Parquet storage cache instantly upon activation.*
+
+### 3. Launch the Streamlit Analytics Interface
+In a separate terminal or split panel window, spin up the browser-based visualization dashboard:
+streamlit run ui.py
+
+---
+
+## 📋 Standardized Data Schema (Lower Snake Case)
+
+| Column Variable Name | Data Type | Engineering Description |
+| :--- | :--- | :--- |
+| taxpayer_id | String | Unique statutory alphanumeric tax identifier |
+| taxpayer_name | String | Corporate registered trade name / corporate entity |
+| reported_revenue | Float | Declared gross institutional revenue earnings (₦) |
+| tax_paid | Float | Verified corporate tax remittances processed (₦) |
+| risk_score | Float | Algorithmic compliance risk index range (0.00 to 1.00) |
+| audit_status | String | System classification vector (Compliant / Under Review) |
